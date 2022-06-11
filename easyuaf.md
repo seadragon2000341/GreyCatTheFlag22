@@ -265,3 +265,46 @@ int main()
     return 0;
 }
 ```
+
+Disas main
+What is UAF?  Pointers in a program refer to data sets in dynamic memory. If a data set is deleted or moved to another block but the pointer, instead of being cleared (set to null), continues to refer to the now-freed memory, the result is a dangling pointer. If the program then allocates this same chunk of memory to another object (for example, data entered by an attacker), the dangling pointer will now reference this new data set. In other words, UAF vulnerabilities allow for code substitution.
+(source: https://encyclopedia.kaspersky.com/glossary/use-after-free/)
+
+Basically, we can allocate, fill, and then free an instance of the org structure by calling the new_org function and the delete_org function. Then we make another allocation (new_person this time), fill it, and then improperly reference the freed org structure. Due to how glibc's allocator works, the new person struct will actually get the same memory as the original org allocation, which in turn gives us the ability to control o->display pointer. This could be used to execute ezflag function to get the flag. 
+We can first load the program in gdb and set a breakpoint towards the end of main. We then enter a new organization.
+ 
+![image](https://user-images.githubusercontent.com/78403168/173195431-1378009b-d77f-487d-ab59-4a93dd0980c3.png)
+
+Orgs is an array of pointers to structures org. We can see that orgs[0] (0x4044c0) contains the address of the org strcture that we just entered. Let us go to that address.
+ ![image](https://user-images.githubusercontent.com/78403168/173195442-746ef024-e6ea-4852-aff6-b1811693e7ae.png)
+![image](https://user-images.githubusercontent.com/78403168/173195446-e58aef28-3ab4-401a-9177-13236656868f.png)
+
+ 
+We can see the data AAAA (41414141) that we entered. More crucially, we see that 0x4052c0 contains the address of the display function. Our goal is to overwrite that with the address of the ezflag function, which we can find out the address.
+ ![image](https://user-images.githubusercontent.com/78403168/173195450-92efa094-384e-4fbe-94f5-79b199f00d67.png)
+
+We then delete the org structure, and see that the data corresponding to the memory of org structure has been “freed”, tho there is some residual data that is not our concern. Also, we notice that orgs[0] still contains the pointer to the address of freed orgs structure. 
+ 
+ ![image](https://user-images.githubusercontent.com/78403168/173195454-9900057d-84a5-47d9-88c1-72939032c397.png)
+![image](https://user-images.githubusercontent.com/78403168/173195457-6e29b709-4ef6-4e46-a23c-22e4de08c20d.png)
+![image](https://user-images.githubusercontent.com/78403168/173195458-f28f219a-9920-4b68-8c94-eb65bbb7b6ab.png)
+
+ 
+
+We then create a new person structure, and due to how GLIBC allocation works, this persons structure will be allocated the memory of the previously freed org structure. We can confirm this by examining persons[0], which is an array of pointers to persons structures.
+ ![image](https://user-images.githubusercontent.com/78403168/173195463-bc00c128-f1eb-4b59-82dd-a1b043adcfaa.png)
+![image](https://user-images.githubusercontent.com/78403168/173195466-1b63f068-9633-4257-afc8-6e46a9d4501d.png)
+
+
+ 
+We have successfully overwritten the display function! We can now call print and it will execute o->display, which is successfully overwritten with our ezflag function
+ 
+![image](https://user-images.githubusercontent.com/78403168/173195469-217db449-c751-45b5-9c08-efb247ee9f88.png)
+
+
+
+I was too lazy to write a script, so I entered everything manually. (Address of ezflag is converted from hex to decimal)
+
+ ![image](https://user-images.githubusercontent.com/78403168/173195472-e0ec57fd-1963-4874-8d8d-5c48a7b19f08.png)
+
+
